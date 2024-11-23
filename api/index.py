@@ -14,6 +14,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
+    main_task()
     return "Hello, World!"
 
 dotenv.load_dotenv()
