@@ -7,21 +7,46 @@ import time
 import json
 import dotenv
 import os
+dotenv.load_dotenv()
 from flask import Flask
-import threading
 
 app = Flask(__name__)
 
 @app.route('/')
 def index():
-    main_task()
     return "Hello, World!"
 
-dotenv.load_dotenv()
+@app.route('/<int:start_index>')
+def process_cities(start_index):
+    start = start_index
+    cities = fetch_cities_from_csv(CITY_FILE_PATH, start, count=CITY_COUNT)
+    client = connect_to_mongodb(MONGODB_URI)
+    if not client:
+        return "Failed to connect to MongoDB", 500
+    db = client[DB_NAME]
+
+    fetched_cities = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_city = {executor.submit(fetch_data_from_api, city): city for city in cities}
+        for future in as_completed(future_to_city):
+            try:
+                city, api_data = future.result()
+                if api_data:
+                    insert_data_into_collection(db, city, api_data)
+                    fetched_cities.append(city)
+            except Exception as e:
+                print(f"Error processing city data: {e}")
+
+    if fetched_cities:
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+        message = f"Data fetched at {timestamp} for {len(fetched_cities)} cities: {', '.join(fetched_cities)}"
+        send_discord_notification(DISCORD_WEBHOOK, message)
+
+    return f"Processed cities starting from index {start_index}", 200
 
 API_URL = os.getenv("API_URL")
 CITY_FILE_PATH = os.getenv("CITY_FILE_PATH")
-CITY_COUNT = int(os.getenv("CITY_COUNT", 5))
+CITY_COUNT = int(os.getenv("CITY_COUNT", 20))
 MONGODB_URI = os.getenv("MONGODB_URI")
 DB_NAME = os.getenv("DB_NAME")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
@@ -67,17 +92,18 @@ def insert_data_into_collection(db, collection_name, data):
     except Exception as e:
         print(f"Error inserting data into collection {collection_name}: {e}")
 
-def fetch_cities_from_csv(file_path, count=5):
+def fetch_cities_from_csv(file_path, start, count=5):
     cities = []
     try:
         with open(file_path, mode='r') as file:
             csv_reader = csv.reader(file)
-            next(csv_reader)
             for i, row in enumerate(csv_reader):
-                if i >= count:
+                if i < start:
+                    continue
+                if len(cities) >= count:
                     break
                 cities.append(row[0])
-            print(f"Top {count} cities fetched from CSV file.")
+        print(f"Top {count} cities fetched from CSV file starting from index {start}.")
     except Exception as e:
         print(f"Error reading CSV file: {e}")
     return cities
@@ -93,33 +119,33 @@ def send_discord_notification(webhook_url, message):
     except Exception as e:
         print(f"Error sending notification: {e}")
 
-def execute_periodically(interval, func, *args, **kwargs):
-    while True:
-        start_time = time.time()
-        func(*args, **kwargs)
-        elapsed_time = time.time() - start_time
-        time.sleep(max(0, interval - elapsed_time))
+# def execute_periodically(interval, func, *args, **kwargs):
+#     while True:
+#         start_time = time.time()
+#         func(*args, **kwargs)
+#         elapsed_time = time.time() - start_time
+#         time.sleep(max(0, interval - elapsed_time))
 
-def main_task():
-    cities = fetch_cities_from_csv(CITY_FILE_PATH, count=CITY_COUNT)
-    client = connect_to_mongodb(MONGODB_URI)
-    if not client:
-        return
-    db = client[DB_NAME]
+# def main_task():
+#     cities = fetch_cities_from_csv(CITY_FILE_PATH, count=CITY_COUNT)
+#     client = connect_to_mongodb(MONGODB_URI)
+#     if not client:
+#         return
+#     db = client[DB_NAME]
 
-    fetched_cities = []
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_city = {executor.submit(fetch_data_from_api, city): city for city in cities}
-        for future in as_completed(future_to_city):
-            city, api_data = future.result()
-            if api_data:
-                insert_data_into_collection(db, city, api_data)
-                fetched_cities.append(city)
+#     fetched_cities = []
+#     with ThreadPoolExecutor(max_workers=5) as executor:
+#         future_to_city = {executor.submit(fetch_data_from_api, city): city for city in cities}
+#         for future in as_completed(future_to_city):
+#             city, api_data = future.result()
+#             if api_data:
+#                 insert_data_into_collection(db, city, api_data)
+#                 fetched_cities.append(city)
 
-    if fetched_cities:
-        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-        message = f"Data fetched at {timestamp} for cities: {', '.join(fetched_cities)}"
-        send_discord_notification(DISCORD_WEBHOOK, message)
+#     if fetched_cities:
+#         timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+#         message = f"Data fetched at {timestamp} for cities: {', '.join(fetched_cities)}"
+#         send_discord_notification(DISCORD_WEBHOOK, message)
 
 if __name__ == "__main__":
     # threading.Thread(target=execute_periodically, args=(3600, main_task)).start()
