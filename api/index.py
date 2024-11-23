@@ -122,5 +122,5 @@ def main_task():
         send_discord_notification(DISCORD_WEBHOOK, message)
 
 if __name__ == "__main__":
-    threading.Thread(target=execute_periodically, args=(3600, main_task)).start()
+    # threading.Thread(target=execute_periodically, args=(3600, main_task)).start()
     app.run(debug=True)
