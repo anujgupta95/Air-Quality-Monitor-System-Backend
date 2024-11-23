@@ -8,13 +8,13 @@ import json
 import dotenv
 import os
 from flask import Flask
+import threading
 
 app = Flask(__name__)
 
 @app.route('/')
 def index():
     return "Hello, World!"
-
 
 dotenv.load_dotenv()
 
@@ -100,25 +100,26 @@ def execute_periodically(interval, func, *args, **kwargs):
         time.sleep(max(0, interval - elapsed_time))
 
 def main_task():
-        cities = fetch_cities_from_csv(CITY_FILE_PATH, count=CITY_COUNT)
-        client = connect_to_mongodb(MONGODB_URI)
-        if not client:
-            return
-        db = client[DB_NAME]
+    cities = fetch_cities_from_csv(CITY_FILE_PATH, count=CITY_COUNT)
+    client = connect_to_mongodb(MONGODB_URI)
+    if not client:
+        return
+    db = client[DB_NAME]
 
-        fetched_cities = []
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            future_to_city = {executor.submit(fetch_data_from_api, city): city for city in cities}
-            for future in as_completed(future_to_city):
-                city, api_data = future.result()
-                if api_data:
-                    insert_data_into_collection(db, city, api_data)
-                    fetched_cities.append(city)
+    fetched_cities = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_city = {executor.submit(fetch_data_from_api, city): city for city in cities}
+        for future in as_completed(future_to_city):
+            city, api_data = future.result()
+            if api_data:
+                insert_data_into_collection(db, city, api_data)
+                fetched_cities.append(city)
 
-        if fetched_cities:
-            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-            message = f"Data fetched at {timestamp} for cities: {', '.join(fetched_cities)}"
-            send_discord_notification(DISCORD_WEBHOOK, message)
+    if fetched_cities:
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+        message = f"Data fetched at {timestamp} for cities: {', '.join(fetched_cities)}"
+        send_discord_notification(DISCORD_WEBHOOK, message)
 
 if __name__ == "__main__":
-    execute_periodically(3600, main_task)
+    threading.Thread(target=execute_periodically, args=(3600, main_task)).start()
+    app.run(debug=True)
