@@ -1,55 +1,21 @@
-import requests
-from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
-import csv
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import time
-import json
 import dotenv
 import os
+from flask import Flask, jsonify
+from flask_caching import Cache
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
+import requests
+import csv
+import json
+
 dotenv.load_dotenv()
-from flask import Flask
-
-app = Flask(__name__)
-
-@app.route('/')
-def index():
-    return "Hello, World!"
-
-@app.route('/<int:start_index>')
-def process_cities(start_index):
-    start = start_index
-    cities = fetch_cities_from_csv(CITY_FILE_PATH, start, count=CITY_COUNT)
-    client = connect_to_mongodb(MONGODB_URI)
-    if not client:
-        return "Failed to connect to MongoDB", 500
-    db = client[DB_NAME]
-
-    fetched_cities = []
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_city = {executor.submit(fetch_data_from_api, city): city for city in cities}
-        for future in as_completed(future_to_city):
-            try:
-                city, api_data = future.result()
-                if api_data:
-                    insert_data_into_collection(db, city, api_data)
-                    fetched_cities.append(city)
-            except Exception as e:
-                print(f"Error processing city data: {e}")
-
-    if fetched_cities:
-        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-        message = f"Data fetched at {timestamp} for {len(fetched_cities)} cities: {', '.join(fetched_cities)}"
-        send_discord_notification(DISCORD_WEBHOOK, message)
-
-    return f"Processed cities starting from index {start_index}", 200
-
 API_URL = os.getenv("API_URL")
 CITY_FILE_PATH = os.getenv("CITY_FILE_PATH")
 CITY_COUNT = int(os.getenv("CITY_COUNT", 20))
 MONGODB_URI = os.getenv("MONGODB_URI")
 DB_NAME = os.getenv("DB_NAME")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+
 
 def connect_to_mongodb(uri):
     try:
@@ -73,13 +39,11 @@ def fetch_data_from_api(city):
         if response.status_code == 200:
             json_data = response.json()
             print(f"Data fetched for city: {city}")
-            return city, json_data
+            return json_data
         else:
-            print(f"Failed to fetch data for city: {city}. Status code: {response.status_code}")
-            return city, None
+           return f"Failed to fetch data for city: {city}. Status code: {response.status_code}"
     except Exception as e:
-        print(f"Error during API call for city {city}: {e}")
-        return city, None
+        return f"Error during API call for city {city}: {e}"
 
 def insert_data_into_collection(db, collection_name, data):
     try:
@@ -119,34 +83,41 @@ def send_discord_notification(webhook_url, message):
     except Exception as e:
         print(f"Error sending notification: {e}")
 
-# def execute_periodically(interval, func, *args, **kwargs):
-#     while True:
-#         start_time = time.time()
-#         func(*args, **kwargs)
-#         elapsed_time = time.time() - start_time
-#         time.sleep(max(0, interval - elapsed_time))
+app = Flask(__name__)
+app.config['CACHE_TYPE'] = 'SimpleCache'  # Use in-memory cache
+app.config['CACHE_DEFAULT_TIMEOUT'] = 1800  # Cache timeout in seconds
+cache = Cache(app)
 
-# def main_task():
-#     cities = fetch_cities_from_csv(CITY_FILE_PATH, count=CITY_COUNT)
-#     client = connect_to_mongodb(MONGODB_URI)
-#     if not client:
-#         return
-#     db = client[DB_NAME]
+@app.route('/')
+def index():
+    return "Hello, World!"
 
-#     fetched_cities = []
-#     with ThreadPoolExecutor(max_workers=5) as executor:
-#         future_to_city = {executor.submit(fetch_data_from_api, city): city for city in cities}
-#         for future in as_completed(future_to_city):
-#             city, api_data = future.result()
-#             if api_data:
-#                 insert_data_into_collection(db, city, api_data)
-#                 fetched_cities.append(city)
+@app.route('/fetch/<city>', methods=['GET'])
+@cache.cached(timeout=1800) 
+def fetch(city):
+    city = city.lower()
+    try:
+        client = connect_to_mongodb(MONGODB_URI)
+        if not client:
+            return "Failed to connect to MongoDB", 500
+        db = client[DB_NAME]
+        response = fetch_data_from_api(city)
+        if not isinstance(response, dict) or response['data']['stations'] is None:
+            return jsonify({"error": "No data found for city: " + city}), 404
 
-#     if fetched_cities:
-#         timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-#         message = f"Data fetched at {timestamp} for cities: {', '.join(fetched_cities)}"
-#         send_discord_notification(DISCORD_WEBHOOK, message)
-
+        if '_id' in response: 
+            print(f"Deleting _id from response: {response['_id']}")
+            del response['_id']
+        insert_data_into_collection(db, city, response)
+        # if response:
+        #     response['_id'] = str(response['_id'])
+        if isinstance(response, dict):
+            response = json.loads(json.dumps(response, default=str))
+        return jsonify(response), 200
+    except Exception as e:
+        print(f"Error: {e}")
+        return "Something went wrong", 400
+    
 if __name__ == "__main__":
     # threading.Thread(target=execute_periodically, args=(3600, main_task)).start()
     app.run(debug=True)
