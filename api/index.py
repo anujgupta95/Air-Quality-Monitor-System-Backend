@@ -1,11 +1,3 @@
-from flask import Flask
-
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return 'Hello, World!'
-
 import requests
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
