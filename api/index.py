@@ -1,6 +1,6 @@
 import dotenv
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_caching import Cache
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
@@ -92,23 +92,41 @@ cache = Cache(app)
 def index():
     return "Hello, World!"
 
+@app.route('/sensor/wifi', methods=['POST'])
+def sensor_wifi():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        client = connect_to_mongodb(MONGODB_URI)
+        if not client:
+            return jsonify({"error": "Failed to connect to MongoDB"}), 500
+
+        db = client['sensor']
+        insert_data_into_collection(db, 'wifi', data)
+        return jsonify({"message": "Data stored successfully"}), 201
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": "Something went wrong"}), 500
+
 @app.route('/fetch/<city>', methods=['GET'])
 @cache.cached(timeout=1800) 
 def fetch(city):
     city = city.lower()
     try:
-        client = connect_to_mongodb(MONGODB_URI)
-        if not client:
-            return "Failed to connect to MongoDB", 500
-        db = client[DB_NAME]
+        # client = connect_to_mongodb(MONGODB_URI)
+        # if not client:
+        #     return "Failed to connect to MongoDB", 500
+        # db = client[DB_NAME]
         response = fetch_data_from_api(city)
         if not isinstance(response, dict) or response['data']['stations'] is None:
             return jsonify({"error": "No data found for city: " + city}), 404
 
-        if '_id' in response: 
-            print(f"Deleting _id from response: {response['_id']}")
-            del response['_id']
-        insert_data_into_collection(db, city, response)
+        # if '_id' in response: 
+        #     print(f"Deleting _id from response: {response['_id']}")
+        #     del response['_id']
+        # insert_data_into_collection(db, city, response)
         # if response:
         #     response['_id'] = str(response['_id'])
         if isinstance(response, dict):
