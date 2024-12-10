@@ -118,6 +118,7 @@ def sensor_wifi():
         return jsonify({"error": "Something went wrong"}), 500
 
 @app.route('/fetch/hw/<deviceId>', methods=['GET'])
+@cache.cached(timeout=5)
 def fetch_all_hw(deviceId):
     try:
         client = connect_to_mongodb(MONGODB_URI)
@@ -126,7 +127,7 @@ def fetch_all_hw(deviceId):
         db = client['sensor_wifi']
         cursor = db[deviceId].find().sort("timestamp", -1).limit(15)
         response = list(cursor)
-        
+
         for doc in response:
             doc['_id'] = str(doc['_id'])
         return jsonify(response), 200
