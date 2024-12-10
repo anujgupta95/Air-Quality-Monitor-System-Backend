@@ -1,3 +1,4 @@
+import datetime
 import dotenv
 import os
 from flask import Flask, jsonify, request
@@ -104,15 +105,35 @@ def sensor_wifi():
         db = client['sensor_wifi']
         print(data.get('deviceID'))
         collection = data.get('deviceID')
+
         if collection is None:
-            return jsonify({"error": "No deviceID provided"}), 400
+            return jsonify({"error": "Insufficient Data"}), 400
+        
+        data["timestamp"] = datetime.datetime.now()
+
         insert_data_into_collection(db, collection, data)
         return jsonify({"message": "Data stored successfully"}), 201
     except Exception as e:
-        print(f"Error: {e}")
         send_discord_notification(DISCORD_WEBHOOK, e)
         return jsonify({"error": "Something went wrong"}), 500
 
+@app.route('/fetch/hw/<deviceId>', methods=['GET'])
+def fetch_all_hw(deviceId):
+    try:
+        client = connect_to_mongodb(MONGODB_URI)
+        if not client:
+            return jsonify({"error": "Failed to connect to MongoDB"}), 500
+        db = client['sensor_wifi']
+        cursor = db[deviceId].find().sort("timestamp", -1).limit(15)
+        response = list(cursor)
+        
+        for doc in response:
+            doc['_id'] = str(doc['_id'])
+        return jsonify(response), 200
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": "Something went wrong"}), 400
+    
 @app.route('/fetch/<city>', methods=['GET'])
 @cache.cached(timeout=1800) 
 def fetch(city):
