@@ -10,8 +10,6 @@ import json
 
 dotenv.load_dotenv()
 API_URL = os.getenv("API_URL")
-CITY_FILE_PATH = os.getenv("CITY_FILE_PATH")
-CITY_COUNT = int(os.getenv("CITY_COUNT", 20))
 MONGODB_URI = os.getenv("MONGODB_URI")
 DB_NAME = os.getenv("DB_NAME")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
@@ -103,8 +101,12 @@ def sensor_wifi():
         if not client:
             return jsonify({"error": "Failed to connect to MongoDB"}), 500
 
-        db = client['sensor']
-        insert_data_into_collection(db, 'wifi', data)
+        db = client['sensor_wifi']
+        print(data.get('deviceID'))
+        collection = data.get('deviceID')
+        if collection is None:
+            return jsonify({"error": "No deviceID provided"}), 400
+        insert_data_into_collection(db, collection, data)
         return jsonify({"message": "Data stored successfully"}), 201
     except Exception as e:
         print(f"Error: {e}")
@@ -139,4 +141,4 @@ def fetch(city):
     
 if __name__ == "__main__":
     # threading.Thread(target=execute_periodically, args=(3600, main_task)).start()
-    app.run(debug=True)
+    app.run(debug=True,host="0.0.0.0")
