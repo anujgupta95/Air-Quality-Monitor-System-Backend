@@ -108,6 +108,7 @@ def sensor_wifi():
         return jsonify({"message": "Data stored successfully"}), 201
     except Exception as e:
         print(f"Error: {e}")
+        send_discord_notification(DISCORD_WEBHOOK, e)
         return jsonify({"error": "Something went wrong"}), 500
 
 @app.route('/fetch/<city>', methods=['GET'])
