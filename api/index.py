@@ -9,12 +9,14 @@ import requests
 import csv
 import json
 from flask_cors import CORS, cross_origin
+from gemini import generate_markdown_output
 
 dotenv.load_dotenv()
 API_URL = os.getenv("API_URL")
 MONGODB_URI = os.getenv("MONGODB_URI")
 DB_NAME = os.getenv("DB_NAME")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 
 def connect_to_mongodb(uri):
@@ -163,6 +165,13 @@ def fetch(city):
     except Exception as e:
         print(f"Error: {e}")
         return "Something went wrong", 400
+    
+@app.route('/gemini', methods=['POST'])
+def get_gemini():
+    city = request.json.get('city')
+    aqi = request.json.get('aqi')
+    health_issues = request.json.get('health_issues')
+    return generate_markdown_output(city, aqi, health_issues, GEMINI_API_KEY)
     
 if __name__ == "__main__":
     # threading.Thread(target=execute_periodically, args=(3600, main_task)).start()
