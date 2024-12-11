@@ -9,7 +9,7 @@ import requests
 import csv
 import json
 from flask_cors import CORS, cross_origin
-# from gemini import generate_markdown_output
+from helper import generate_markdown_output
 
 dotenv.load_dotenv()
 API_URL = os.getenv("API_URL")
@@ -166,16 +166,16 @@ def fetch(city):
         print(f"Error: {e}")
         return "Something went wrong", 400
     
-# @app.route('/gemini', methods=['POST'])
-# def get_gemini():
-#     data = request.get_json()
-#     if not data or 'city' not in data or 'aqi' not in data or 'health_issues' not in data:
-#         return jsonify({"error": "Missing required fields"}), 400
+@app.route('/gemini', methods=['POST'])
+def get_gemini():
+    data = request.get_json()
+    if not data or 'city' not in data or 'aqi' not in data or 'health_issues' not in data:
+        return jsonify({"error": "Missing required fields"}), 400
 
-#     city = data['city']
-#     aqi = data['aqi']
-#     health_issues = data['health_issues']
-#     return generate_markdown_output(city, aqi, health_issues, GEMINI_API_KEY)
+    city = data['city']
+    aqi = data['aqi']
+    health_issues = data['health_issues']
+    return generate_markdown_output(city, aqi, health_issues, GEMINI_API_KEY)
     
 if __name__ == "__main__":
     # threading.Thread(target=execute_periodically, args=(3600, main_task)).start()
