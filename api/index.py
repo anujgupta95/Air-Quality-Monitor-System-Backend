@@ -8,6 +8,7 @@ from pymongo.server_api import ServerApi
 import requests
 import csv
 import json
+from flask_cors import CORS, cross_origin
 
 dotenv.load_dotenv()
 API_URL = os.getenv("API_URL")
@@ -86,6 +87,7 @@ app = Flask(__name__)
 app.config['CACHE_TYPE'] = 'SimpleCache'  # Use in-memory cache
 app.config['CACHE_DEFAULT_TIMEOUT'] = 1800  # Cache timeout in seconds
 cache = Cache(app)
+CORS(app)
 
 @app.route('/')
 def index():
@@ -118,6 +120,7 @@ def sensor_wifi():
         return jsonify({"error": "Something went wrong"}), 500
 
 @app.route('/fetch/hw/<deviceId>', methods=['GET'])
+@cross_origin()
 @cache.cached(timeout=5)
 def fetch_all_hw(deviceId):
     try:
