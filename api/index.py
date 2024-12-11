@@ -230,6 +230,7 @@ def export_to_csv(device_id):
         return jsonify({"error": "Something went wrong"}), 500
     
 @app.route('/fetch/<city>', methods=['GET'])
+@cross_origin()
 @cache.cached(timeout=1800) 
 def fetch(city):
     city = city.lower()
@@ -256,6 +257,7 @@ def fetch(city):
         return "Something went wrong", 400
     
 @app.route('/gemini', methods=['POST'])
+@cross_origin()
 def get_gemini():
     data = request.get_json()
     if not data or 'city' not in data or 'aqi' not in data or 'health_issues' not in data:
