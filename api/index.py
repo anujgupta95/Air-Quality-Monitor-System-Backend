@@ -283,7 +283,7 @@ def get_gemini():
 
 
 class BlogResource(Resource):
-    @cache.cached(timeout=1800)
+    # @cache.cached(timeout=1800)
     def get(self, blog_id=None):
         if blog_id:
             blog = collection.find_one({"_id": ObjectId(blog_id)})
