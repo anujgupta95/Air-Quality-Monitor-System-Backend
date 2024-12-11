@@ -1,7 +1,7 @@
 import datetime
 import dotenv
 import os
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_caching import Cache
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
@@ -9,7 +9,6 @@ import requests
 import csv
 import json
 from flask_cors import CORS, cross_origin
-# from helpers import generate_markdown_output
 
 dotenv.load_dotenv()
 API_URL = os.getenv("API_URL")
@@ -85,6 +84,62 @@ def send_discord_notification(webhook_url, message):
     except Exception as e:
         print(f"Error sending notification: {e}")
 
+# Function to get healthcare instructions from Gemini API
+def get_health_instructions_from_gemini(city, aqi, health_issues=None, api_key="your_gemini_api_key_here"):
+    # Gemini API URL
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+
+    # Prepare the prompt text
+    user_input = f"City: {city}\nAQI: {aqi}\nHealth Condition: {health_issues if health_issues else 'None'}\n\nProvide personalized healthcare recommendations based on the AQI level and health condition."
+
+    # Construct the payload according to the correct structure
+    payload = {
+        "contents": [{
+            "parts": [{
+                "text": user_input
+            }]
+        }]
+    }
+
+    # Set headers for the API request
+    headers = {
+        "Content-Type": "application/json"
+    }
+
+    # Send the request to the Gemini API
+    response = requests.post(api_url, json=payload, headers=headers)
+    
+    # Check if the request was successful
+    if response.status_code == 200:
+        data = response.json()
+        # Directly extract the 'content' from the response
+        content = data.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', "No personalized health instructions available.")
+        return content
+    else:
+        raise ValueError(f"Error fetching content: {response.status_code} - {response.text}")
+
+# Function to generate the markdown output
+def generate_markdown_output(city, aqi, health_issues=None, api_key="your_gemini_api_key_here"):
+    try:
+        # Get health instructions from Gemini API
+        health_instructions = get_health_instructions_from_gemini(city, aqi, health_issues, api_key)
+        
+        # Create the Markdown formatted string
+        markdown_content = f"""
+# AQI Health Advisory for {city}
+
+**AQI Level**: {aqi}
+
+### Healthcare Recommendations:
+
+{health_instructions}
+
+"""
+        return markdown_content
+
+    except Exception as e:
+        return f"Error: {str(e)}"
+
 app = Flask(__name__)
 app.config['CACHE_TYPE'] = 'SimpleCache'  # Use in-memory cache
 app.config['CACHE_DEFAULT_TIMEOUT'] = 1800  # Cache timeout in seconds
@@ -140,6 +195,40 @@ def fetch_all_hw(deviceId):
         print(f"Error: {e}")
         return jsonify({"error": "Something went wrong"}), 400
     
+@app.route('/csv/hw/<device_id>', methods=['GET'])
+@cross_origin()
+def export_to_csv(device_id):
+    try:
+        client = connect_to_mongodb(MONGODB_URI)
+        if not client:
+            return jsonify({"error": "Failed to connect to MongoDB"}), 500
+        db = client['sensor_wifi']
+        cursor = db[device_id].find().sort("timestamp", -1)
+        data = list(cursor)
+
+        if not data:
+            return jsonify({"error": "No data found for device: " + device_id}), 404
+
+        # Create CSV file
+        csv_file_path = os.path.join(os.getcwd(), f"{device_id}_data.csv")
+        os.makedirs(os.path.dirname(csv_file_path), exist_ok=True)
+        with open(csv_file_path, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            # Write headers
+            headers = data[0].keys()
+            writer.writerow(headers)
+            # Write data rows
+            for document in data:
+                writer.writerow(document.values())
+
+        # Send CSV file in response
+        response = send_file(csv_file_path, as_attachment=True)
+        # os.remove(csv_file_path)  # Delete the CSV file after sending
+        return response, 200
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": "Something went wrong"}), 500
+    
 @app.route('/fetch/<city>', methods=['GET'])
 @cache.cached(timeout=1800) 
 def fetch(city):
@@ -166,16 +255,16 @@ def fetch(city):
         print(f"Error: {e}")
         return "Something went wrong", 400
     
-# @app.route('/gemini', methods=['POST'])
-# def get_gemini():
-#     data = request.get_json()
-#     if not data or 'city' not in data or 'aqi' not in data or 'health_issues' not in data:
-#         return jsonify({"error": "Missing required fields"}), 400
+@app.route('/gemini', methods=['POST'])
+def get_gemini():
+    data = request.get_json()
+    if not data or 'city' not in data or 'aqi' not in data or 'health_issues' not in data:
+        return jsonify({"error": "Missing required fields"}), 400
 
-#     city = data['city']
-#     aqi = data['aqi']
-#     health_issues = data['health_issues']
-#     return generate_markdown_output(city, aqi, health_issues, GEMINI_API_KEY)
+    city = data['city']
+    aqi = data['aqi']
+    health_issues = data['health_issues']
+    return generate_markdown_output(city, aqi, health_issues, GEMINI_API_KEY)
     
 if __name__ == "__main__":
     # threading.Thread(target=execute_periodically, args=(3600, main_task)).start()
