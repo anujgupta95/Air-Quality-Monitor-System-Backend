@@ -168,9 +168,13 @@ def fetch(city):
     
 @app.route('/gemini', methods=['POST'])
 def get_gemini():
-    city = request.json.get('city')
-    aqi = request.json.get('aqi')
-    health_issues = request.json.get('health_issues')
+    data = request.get_json()
+    if not data or 'city' not in data or 'aqi' not in data or 'health_issues' not in data:
+        return jsonify({"error": "Missing required fields"}), 400
+
+    city = data['city']
+    aqi = data['aqi']
+    health_issues = data['health_issues']
     return generate_markdown_output(city, aqi, health_issues, GEMINI_API_KEY)
     
 if __name__ == "__main__":
