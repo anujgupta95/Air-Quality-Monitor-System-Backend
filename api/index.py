@@ -9,6 +9,9 @@ import requests
 import csv
 import json
 from flask_cors import CORS, cross_origin
+from datetime import datetime
+from bson import ObjectId
+from flask_restful import Api, Resource, reqparse
 
 dotenv.load_dotenv()
 API_URL = os.getenv("API_URL")
@@ -84,7 +87,6 @@ def send_discord_notification(webhook_url, message):
     except Exception as e:
         print(f"Error sending notification: {e}")
 
-# Function to get healthcare instructions from Gemini API
 def get_health_instructions_from_gemini(city, aqi, health_issues=None, api_key="your_gemini_api_key_here"):
     # Gemini API URL
     api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
@@ -125,7 +127,6 @@ Provide clear and simple healthcare recommendations based on the AQI level and h
     else:
         raise ValueError(f"Error fetching content: {response.status_code} - {response.text}")
 
-# Function to generate the markdown output
 def generate_markdown_output(city, aqi, health_issues=None, api_key="your_gemini_api_key_here"):
     try:
         # Get health instructions from Gemini API
@@ -152,6 +153,11 @@ app.config['CACHE_TYPE'] = 'SimpleCache'  # Use in-memory cache
 app.config['CACHE_DEFAULT_TIMEOUT'] = 1800  # Cache timeout in seconds
 cache = Cache(app)
 CORS(app)
+
+client = connect_to_mongodb(MONGODB_URI)
+db = client[DB_NAME]
+collection = db['blogs']
+api = Api(app)
 
 @app.route('/')
 def index():
@@ -274,6 +280,69 @@ def get_gemini():
     aqi = data['aqi']
     health_issues = data['health_issues']
     return generate_markdown_output(city, aqi, health_issues, GEMINI_API_KEY)
+
+
+class BlogResource(Resource):
+    @cache.cached(timeout=1800)
+    def get(self, blog_id=None):
+        if blog_id:
+            blog = collection.find_one({"_id": ObjectId(blog_id)})
+            if not blog:
+                return {"error": "Blog not found"}, 404
+            blog["_id"] = str(blog["_id"])
+            return blog, 200
+        else:
+            blogs = list(collection.find())
+            for blog in blogs:
+                blog["_id"] = str(blog["_id"])
+            return blogs, 200
+
+    def post(self):
+        parser = reqparse.RequestParser()
+        parser.add_argument('title', required=True)
+        parser.add_argument('author', required=True)
+        parser.add_argument('content', required=True)
+        parser.add_argument('imageurl', required=False)
+        args = parser.parse_args()
+
+        blog = {
+            "title": args['title'],
+            "author": args['author'],
+            "content": args['content'],
+            "imageurl": args['imageurl']
+        }
+        result = collection.insert_one(blog)
+        blog["_id"] = str(result.inserted_id)
+        return blog, 201
+
+    def put(self, blog_id):
+        parser = reqparse.RequestParser()
+        parser.add_argument('title', required=True)
+        parser.add_argument('author', required=True)
+        parser.add_argument('content', required=True)
+        parser.add_argument('imageurl', required=False)
+        args = parser.parse_args()
+
+        updated_blog = {
+            "title": args['title'],
+            "author": args['author'],
+            "content": args['content'],
+            "imageurl": args.get('imageurl')
+        }
+        result = collection.update_one({"_id": ObjectId(blog_id)}, {"$set": updated_blog})
+        if result.matched_count == 0:
+            return {"error": "Blog not found"}, 404
+        updated_blog["_id"] = blog_id
+        return updated_blog, 200
+
+    def delete(self, blog_id):
+        blog = collection.find_one_and_delete({"_id": ObjectId(blog_id)})
+        if not blog:
+            return {"error": "Blog not found"}, 404
+        blog["_id"] = str(blog["_id"])
+        return blog, 200
+
+api.add_resource(BlogResource, '/blogs', '/blogs/<string:blog_id>')
     
 if __name__ == "__main__":
     # threading.Thread(target=execute_periodically, args=(3600, main_task)).start()
