@@ -90,7 +90,14 @@ def get_health_instructions_from_gemini(city, aqi, health_issues=None, api_key="
     api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
     # Prepare the prompt text
-    user_input = f"City: {city}\nAQI: {aqi}\nHealth Condition: {health_issues if health_issues else 'None'}\n\nProvide personalized healthcare recommendations based on the AQI level and health condition."
+    user_input = f"""
+City: {city}
+AQI: {aqi}
+Health Condition: {health_issues if health_issues else 'None'}
+
+Provide clear and simple healthcare recommendations based on the AQI level and health condition. Keep the points short, easy to understand, and actionable.
+"""
+
 
     # Construct the payload according to the correct structure
     payload = {
