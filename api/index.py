@@ -34,39 +34,39 @@ AUTH_TOKEN = os.getenv("AUTH_TOKEN")
 ### ML MODELING
 
 # def get_paths(city):
-#     MODEL_PATH = f"lstm_aqi_model_{city}.h5"
-#     SCALER_PATH = f"scaler_{city}.pkl"
+    # MODEL_PATH = f"lstm_aqi_model_{city}.h5"
+    # SCALER_PATH = f"scaler_{city}.pkl"
 
-#     return MODEL_PATH, SCALER_PATH
+    # return MODEL_PATH, SCALER_PATH
 
-def fetch_30days_data_from_api(city):
-    headers = {
-        'Authorization': f'bearer {AUTH_TOKEN}',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-        'searchtype': "cityId",
-        'locationid': city,
-        'sendevid': "AQI-IN"
-    }
-    try:
-        response = requests.get("https://airquality.aqi.in/api/v1/getLastMonthHistory", headers=headers)
-        if response.status_code == 200:
-            json_data = response.json()
-            print(f"Data fetched for city: {city}")
+# def fetch_30days_data_from_api(city):
+#     headers = {
+#         'Authorization': f'bearer {AUTH_TOKEN}',
+#         'Content-Type': 'application/x-www-form-urlencoded',
+#         'Accept': 'application/json',
+#         'searchtype': "cityId",
+#         'locationid': city,
+#         'sendevid': "AQI-IN"
+#     }
+#     try:
+#         response = requests.get("https://airquality.aqi.in/api/v1/getLastMonthHistory", headers=headers)
+#         if response.status_code == 200:
+#             json_data = response.json()
+#             print(f"Data fetched for city: {city}")
             
-            # Extract AQI data and timeArray
-            aqi_data = json_data.get("Table", {}).get("Data", {}).get("averageArray", [])
-            time_data = json_data.get("Table", {}).get("Data", {}).get("timeArray", [])
+#             # Extract AQI data and timeArray
+#             aqi_data = json_data.get("Table", {}).get("Data", {}).get("averageArray", [])
+#             time_data = json_data.get("Table", {}).get("Data", {}).get("timeArray", [])
 
-            latest_date = max(time_data)
+#             latest_date = max(time_data)
             
-            return aqi_data, latest_date
-        else:
-            print(f"Failed to fetch data for city: {city}. Status code: {response.status_code}")
-            return [], []
-    except Exception as e:
-        print(f"Error during API call for city {city}: {e}")
-        return [], []
+#             return aqi_data, latest_date
+#         else:
+#             print(f"Failed to fetch data for city: {city}. Status code: {response.status_code}")
+#             return [], []
+#     except Exception as e:
+#         print(f"Error during API call for city {city}: {e}")
+#         return [], []
 
 # def create_and_train_model(aqi_data, MODEL_PATH, SCALER_PATH):
 #     # Prepare the data
