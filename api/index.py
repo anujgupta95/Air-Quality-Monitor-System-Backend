@@ -223,7 +223,7 @@ def export_to_csv(device_id):
             return jsonify({"error": "No data found for device: " + device_id}), 404
 
         # Create CSV file
-        csv_file_path = os.path.join(os.getcwd(), f"{device_id}_data.csv")
+        csv_file_path = os.path.join(os.getcwd(), f"/tmp/{device_id}_data.csv")
         os.makedirs(os.path.dirname(csv_file_path), exist_ok=True)
         with open(csv_file_path, mode='w', newline='') as file:
             writer = csv.writer(file)
