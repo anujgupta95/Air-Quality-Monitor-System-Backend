@@ -1,4 +1,3 @@
-import datetime
 import dotenv
 import os
 from flask import Flask, jsonify, request, send_file
@@ -12,8 +11,6 @@ from flask_cors import CORS, cross_origin
 from datetime import datetime
 from bson import ObjectId
 from flask_restful import Api, Resource, reqparse
-import os
-import requests
 # import numpy as np
 # from tensorflow.keras.models import Sequential, load_model
 # from tensorflow.keras.layers import Dense, LSTM
@@ -310,18 +307,19 @@ def sensor_wifi():
             return jsonify({"error": "Failed to connect to MongoDB"}), 500
 
         db = client['sensor_wifi']
-        print(data.get('deviceID'))
-        collection = data.get('deviceID')
+        # print(data.get('deviceID'))
+        col = data.get('deviceID')
+        # collection = None
 
-        if collection is None:
+        if col is None:
             return jsonify({"error": "Insufficient Data"}), 400
         
-        data["timestamp"] = datetime.datetime.now()
+        data["timestamp"] = datetime.now()
+        print(data)
 
-        insert_data_into_collection(db, collection, data)
+        insert_data_into_collection(db, col, data)
         return jsonify({"message": "Data stored successfully"}), 201
     except Exception as e:
-        send_discord_notification(DISCORD_WEBHOOK, e)
         return jsonify({"error": "Something went wrong"}), 500
 
 @app.route('/fetch/hw/<deviceId>', methods=['GET'])
