@@ -18,9 +18,9 @@ import numpy as np
 import requests
 # from tensorflow.keras.models import Sequential, load_model
 # from tensorflow.keras.layers import Dense, LSTM
-from sklearn.preprocessing import MinMaxScaler
-import joblib
-from datetime import datetime, timedelta
+# from sklearn.preprocessing import MinMaxScaler
+# import joblib
+# from datetime import datetime, timedelta
 
 dotenv.load_dotenv()
 API_URL = os.getenv("API_URL")
