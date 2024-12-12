@@ -324,7 +324,7 @@ def sensor_wifi():
 
 @app.route('/fetch/hw/<deviceId>', methods=['GET'])
 @cross_origin()
-@cache.cached(timeout=5)
+# @cache.cached(timeout=5)
 def fetch_all_hw(deviceId):
     try:
         client = connect_to_mongodb(MONGODB_URI)
