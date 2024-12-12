@@ -281,6 +281,14 @@ def get_gemini():
     health_issues = data['health_issues']
     return generate_markdown_output(city, aqi, health_issues, GEMINI_API_KEY)
 
+@app.route('/devices', methods=['GET'])
+def get_devices():
+    client = connect_to_mongodb(MONGODB_URI)
+    if not client:
+        return jsonify({"error": "Failed to connect to MongoDB"}), 500
+    db = client['sensor_wifi']
+    collections = db.list_collection_names()
+    return jsonify(collections), 200
 
 class BlogResource(Resource):
     # @cache.cached(timeout=1800)
