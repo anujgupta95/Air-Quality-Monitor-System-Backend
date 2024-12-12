@@ -12,6 +12,15 @@ from flask_cors import CORS, cross_origin
 from datetime import datetime
 from bson import ObjectId
 from flask_restful import Api, Resource, reqparse
+import numpy as np
+import os
+import numpy as np
+import requests
+# from tensorflow.keras.models import Sequential, load_model
+# from tensorflow.keras.layers import Dense, LSTM
+from sklearn.preprocessing import MinMaxScaler
+import joblib
+from datetime import datetime, timedelta
 
 dotenv.load_dotenv()
 API_URL = os.getenv("API_URL")
@@ -19,7 +28,134 @@ MONGODB_URI = os.getenv("MONGODB_URI")
 DB_NAME = os.getenv("DB_NAME")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+AUTH_TOKEN = os.getenv("AUTH_TOKEN")
 
+
+### ML MODELING
+
+# def get_paths(city):
+#     MODEL_PATH = f"lstm_aqi_model_{city}.h5"
+#     SCALER_PATH = f"scaler_{city}.pkl"
+
+#     return MODEL_PATH, SCALER_PATH
+
+def fetch_30days_data_from_api(city):
+    headers = {
+        'Authorization': f'bearer {AUTH_TOKEN}',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'searchtype': "cityId",
+        'locationid': city,
+        'sendevid': "AQI-IN"
+    }
+    try:
+        response = requests.get("https://airquality.aqi.in/api/v1/getLastMonthHistory", headers=headers)
+        if response.status_code == 200:
+            json_data = response.json()
+            print(f"Data fetched for city: {city}")
+            
+            # Extract AQI data and timeArray
+            aqi_data = json_data.get("Table", {}).get("Data", {}).get("averageArray", [])
+            time_data = json_data.get("Table", {}).get("Data", {}).get("timeArray", [])
+
+            latest_date = max(time_data)
+            
+            return aqi_data, latest_date
+        else:
+            print(f"Failed to fetch data for city: {city}. Status code: {response.status_code}")
+            return [], []
+    except Exception as e:
+        print(f"Error during API call for city {city}: {e}")
+        return [], []
+
+# def create_and_train_model(aqi_data, MODEL_PATH, SCALER_PATH):
+#     # Prepare the data
+#     scaler = MinMaxScaler(feature_range=(0, 1))
+#     aqi_data_scaled = scaler.fit_transform(np.array(aqi_data).reshape(-1, 1))
+
+#     # Prepare the input-output pairs for training (using last 5 days to predict next day)
+#     X, y = [], []
+#     for i in range(len(aqi_data_scaled) - 5):
+#         X.append(aqi_data_scaled[i:i+5, 0])  # Last 5 days of data
+#         y.append(aqi_data_scaled[i+5, 0])    # Next day's data
+#     X, y = np.array(X), np.array(y)
+
+#     # Reshape X for LSTM input
+#     X = X.reshape(X.shape[0], X.shape[1], 1)
+
+#     # Create the LSTM model
+#     model = Sequential()
+#     model.add(LSTM(units=50, return_sequences=False, input_shape=(X.shape[1], 1)))
+#     model.add(Dense(units=1))
+#     model.compile(optimizer='adam', loss='mean_squared_error')
+
+#     # Train the model
+#     model.fit(X, y, epochs=10, batch_size=32)
+
+#     # Save the model and scaler
+#     model.save(MODEL_PATH)
+#     joblib.dump(scaler, SCALER_PATH)
+
+#     print("Model and scaler saved!")
+#     return model, scaler
+
+# def load_or_create_model_and_scaler(CITY_ID, MODEL_PATH, SCALER_PATH):
+#     if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
+#         # Load pre-trained model and scaler
+#         model = load_model(MODEL_PATH)
+#         scaler = joblib.load(SCALER_PATH)
+#         print("Loaded pre-trained model and scaler.")
+#     else:
+#         # Create and train the model and scaler
+#         print("Model or scaler not found. Creating and training a new model.")
+#         # Fetch AQI data from the API
+#         aqi_data, latest_date = fetch_30days_data_from_api(CITY_ID)
+#         if not aqi_data:
+#             print("Insufficient data to create the model.")
+#             return None, None
+#         model, scaler = create_and_train_model(aqi_data, MODEL_PATH, SCALER_PATH)
+    
+#     return model, scaler
+
+# def predict_aqi(city):
+#     MODEL_PATH, SCALER_PATH = get_paths(city)
+#     # Load or create the model and scaler
+#     model, scaler = load_or_create_model_and_scaler(city, MODEL_PATH, SCALER_PATH)
+#     if model is None or scaler is None:
+#         return {"error": "Failed to load or create model and scaler."}
+
+#     # Fetch AQI data and corresponding dates for the given city
+#     aqi_data, prediction_date = fetch_30days_data_from_api(city)
+    
+#     if not aqi_data or len(aqi_data) < 5:  # Ensure enough data is available
+#         return {"error": "Insufficient data for prediction."}
+
+#     # Scale the data
+#     aqi_data_scaled = scaler.transform(np.array(aqi_data).reshape(-1, 1))
+
+#     # Prepare the input sequence (last 5 days of data)
+#     sequence_length = 5
+#     input_sequence = np.array(aqi_data_scaled[-sequence_length:]).reshape(1, sequence_length, 1)
+
+#     # Make the prediction
+#     prediction_scaled = model.predict(input_sequence)
+#     prediction = scaler.inverse_transform(prediction_scaled)[0][0]
+
+
+#     date_obj = datetime.strptime(prediction_date.split()[0], "%Y-%m-%d")
+
+#     next_date_obj = date_obj + timedelta(days=1)
+
+#     # Convert back to string
+#     next_date = next_date_obj.strftime("%Y-%m-%d")
+
+#     # Return the prediction as a dictionary
+#     return {
+#         "city": city,
+#         "prediction": round(prediction, 2),
+#         "unit": "AQI",
+#         "prediction_date": next_date
+#     }
 
 def connect_to_mongodb(uri):
     try:
@@ -269,6 +405,29 @@ def fetch(city):
         print(f"Error: {e}")
         return "Something went wrong", 400
     
+
+@app.route('/fetch/<city>/history', methods=['GET'])
+def fetch_history(city):
+    headers = {
+        'Authorization': f'bearer {AUTH_TOKEN}',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'searchtype': "cityId",
+        'locationid': city,
+        'sendevid': "AQI-IN"
+    }
+    try:
+        response = requests.get("https://airquality.aqi.in/api/v1/getLastMonthHistory", headers=headers)
+        if response.status_code == 200:
+            json_data = response.json()
+            return json_data
+        else:
+            print(f"Failed to fetch data for city: {city}. Status code: {response.status_code}")
+            return []
+    except Exception as e:
+        print(f"Error during API call for city {city}: {e}")
+        return []
+
 @app.route('/gemini', methods=['POST'])
 @cross_origin()
 def get_gemini():
