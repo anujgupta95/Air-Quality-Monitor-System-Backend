@@ -12,10 +12,9 @@ from flask_cors import CORS, cross_origin
 from datetime import datetime
 from bson import ObjectId
 from flask_restful import Api, Resource, reqparse
-import numpy as np
 import os
-import numpy as np
 import requests
+# import numpy as np
 # from tensorflow.keras.models import Sequential, load_model
 # from tensorflow.keras.layers import Dense, LSTM
 # from sklearn.preprocessing import MinMaxScaler
