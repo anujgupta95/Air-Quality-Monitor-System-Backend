@@ -136,7 +136,7 @@ DISCORD_WEBHOOK=<DISCORD_WEBHOOK_URL>
 ```bash
 flask run
 # or
-python app.py
+python api/index.py
 ```
 
 ---
@@ -163,35 +163,6 @@ python app.py
 
 ---
 
-## 📦 Future Improvements
-
-* JWT-based Auth for secure endpoints
-* GraphQL integration for flexible queries
-* Advanced AQI forecasting using ML model
-* Real-time charts dashboard frontend
-* Dockerization for scalable deployment
-
----
-
-## 🪪 License
-
-MIT License © \[Your Name]
-Feel free to use, modify, and contribute!
-
----
-
-## 🤝 Contributing
-
-1. Fork this repo
-2. Create a new branch: `git checkout -b feature-x`
-3. Commit changes: `git commit -am 'Add feature x'`
-4. Push to the branch: `git push origin feature-x`
-5. Submit a PR 🎉
-
----
-
 ## 📬 Contact
 
 For queries or contributions, connect via [anujg.me](https://anujg.me) or raise an issue.
-
-```
